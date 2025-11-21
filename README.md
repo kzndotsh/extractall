@@ -1,3 +1,6 @@
+> [!WARNING]
+> This project was created 100% agentically via Claude Sonnet 4.5 as an experiment, always take precaution when running software written by strangers, but even more so when written by AI.
+
 # ExtractAll - Universal Archive Extraction Tool
 
 A robust Python tool for extracting various archive formats with advanced features like nested archive handling, resume capability, and comprehensive error management.
