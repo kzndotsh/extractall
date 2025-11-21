@@ -3,19 +3,22 @@
 
 # ExtractAll - Universal Archive Extraction Tool
 
-A robust Python tool for extracting various archive formats with advanced features like nested archive handling, resume capability, and comprehensive error management.
+A robust Python tool for extracting various archive formats with advanced features like repair strategies, stuck detection, resume capability, and comprehensive error management.
 
 ## Features
 
 - **Multi-format support**: ZIP, RAR, 7Z, TAR, GZ, BZ2, XZ and more
 - **Smart detection**: Identifies archives by content when extensions are missing
-- **Nested archives**: Automatically extracts archives found within archives (aggressive mode)
+- **Multiple extraction modes**: Conservative, Standard, and Aggressive modes
+- **Archive repair**: Attempts to repair corrupted ZIP and RAR files before extraction
+- **Stuck detection**: Monitors extraction progress and handles stuck operations
 - **Resume capability**: Can resume interrupted extractions using state tracking
 - **Duplicate handling**: Automatically renames files to avoid conflicts
-- **Directory organization**: Separates extracted archives, output files, and failed extractions
+- **Directory organization**: Separates extracted archives, output files, failed extractions, and stuck operations
 - **Comprehensive logging**: Detailed logs saved to file and console output
 - **Error handling**: Gracefully handles corrupted, password-protected, or incomplete archives
 - **Multipart support**: Handles split archives (RAR, 7Z, ZIP parts)
+- **Progress monitoring**: Real-time monitoring with timeout detection
 
 ## Installation
 
@@ -36,14 +39,19 @@ pip install -e .
 ### Command Line Interface
 
 ```bash
-# Using uv
-uv run python -m extractall <input_directory>
-
-# Using pip installation
+# Basic usage
 extractall <input_directory>
 
+# With extraction modes
+extractall <input_directory> --aggressive    # Nested archive extraction
+extractall <input_directory> --conservative  # Basic extraction only
+extractall <input_directory> --no-multipart # Disable multipart support
+
+# Using uv
+uv run python -m extractall <input_directory> [options]
+
 # Direct execution
-python -m extractall <input_directory>
+python -m extractall <input_directory> [options]
 ```
 
 ### Python API
@@ -58,15 +66,23 @@ report = extractor.run()
 # With options
 extractor = ArchiveExtractor(
     input_dir="/path/to/archives",
-    mode="aggressive",  # or "standard"
-    enable_multipart=True
+    mode="aggressive"  # or "standard", "conservative"
 )
 report = extractor.run()
+
+# Using new orchestrator directly
+from extractall import ExtractionOrchestrator, create_aggressive_config
+from pathlib import Path
+
+config = create_aggressive_config(Path("/path/to/archives"))
+orchestrator = ExtractionOrchestrator(config)
+report = orchestrator.run()
 ```
 
 ## Extraction Modes
 
-- **Standard**: Basic extraction with error handling
+- **Conservative**: Basic extraction with minimal processing
+- **Standard**: Basic extraction with error handling and repair attempts
 - **Aggressive**: Includes nested archive detection and recursive extraction
 
 ## Directory Structure
@@ -76,6 +92,7 @@ After running, the tool creates:
 - `output/` - Extracted file contents (maintains original directory structure)
 - `failed/` - Archives that couldn't be extracted
 - `locked/` - Password-protected archives
+- `stuck/` - Archives that got stuck during extraction
 - `extraction.log` - Detailed operation log
 - `extraction_state.json` - State file for resume capability
 
@@ -99,6 +116,12 @@ If extraction is interrupted, run the command again:
 - Continues from where it left off
 - Maintains state in `extraction_state.json`
 
+### Archive Repair (Standard/Aggressive Mode)
+- Attempts to repair corrupted ZIP and RAR files
+- Uses system tools like `zip -F` and `rar r`
+- Falls back to normal extraction if repair fails
+- Configurable repair timeout
+
 ### Nested Archive Handling (Aggressive Mode)
 - Extracts outer archives
 - Scans extracted content for more archives
@@ -114,6 +137,7 @@ If extraction is interrupted, run the command again:
 - **Password-protected**: Moved to `locked/` directory
 - **Corrupted files**: Moved to `failed/` directory
 - **Missing parts**: Moved to `failed/` directory
+- **Stuck extractions**: Moved to `stuck/` directory after timeout
 - **Unknown formats**: Logged and skipped
 
 ## Requirements
@@ -161,10 +185,29 @@ uv run pytest --cov=extractall
 extractall/
 ├── extractall/           # Main package
 │   ├── core/            # Core extraction logic
+│   │   ├── orchestrator.py    # Main orchestration logic
+│   │   ├── file_manager.py    # File management
+│   │   ├── state_manager.py   # State tracking
+│   │   ├── detection.py       # Archive detection
+│   │   └── interfaces.py      # Core interfaces
 │   ├── strategies/      # Extraction strategies
+│   │   ├── basic_strategy.py         # Basic extraction
+│   │   ├── repair_strategy.py        # Archive repair
+│   │   ├── multipart_strategy.py     # Multipart handling
+│   │   ├── multi_tool_strategy.py    # Multiple tool attempts
+│   │   ├── partial_strategy.py       # Partial extraction
+│   │   ├── encoding_strategy.py      # Encoding variants
+│   │   └── alternative_format_strategy.py # Format alternatives
 │   ├── handlers/        # Format-specific handlers
+│   │   ├── base_handler.py    # Base handler interface
+│   │   ├── zip_handler.py     # ZIP handling
+│   │   ├── rar_handler.py     # RAR handling
+│   │   ├── sevenz_handler.py  # 7Z handling
+│   │   └── tar_handler.py     # TAR handling
 │   ├── config/          # Configuration management
+│   │   └── settings.py        # Configuration classes
 │   └── utils/           # Utility functions
+│       └── progress_monitor.py # Progress monitoring
 ├── tests/               # Test suite
 │   ├── unit/           # Unit tests
 │   ├── integration/    # Integration tests
@@ -183,6 +226,8 @@ config = ExtractionConfig(
     input_dir=Path("/path/to/archives"),
     mode=ExtractionMode.AGGRESSIVE,
     enable_multipart=True,
+    enable_repair=True,
+    stuck_timeout=300,  # 5 minutes
     log_level="INFO"
 )
 ```
@@ -219,6 +264,11 @@ Comprehensive logging includes:
 **Disk Space:**
 - Ensure adequate space for extraction
 - Monitor disk usage during large extractions
+
+**Stuck Extractions:**
+- Tool automatically detects stuck operations
+- Moves stuck archives to `stuck/` directory
+- Configurable timeout (default: 5 minutes)
 
 **Special Characters:**
 - Tool handles Unicode filenames automatically
