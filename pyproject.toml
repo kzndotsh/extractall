@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "extractall"
 version = "1.0.0"
-description = "Universal archive extraction tool with nested archive support"
+description = "Universal archive extraction tool"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
